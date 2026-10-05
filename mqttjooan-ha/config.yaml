@@ -1,0 +1,40 @@
+name: MQTT JOOAN HA
+version: "0.1.0"
+slug: mqttjooan_ha
+description: Local MQTT sink/inspector for JOOAN jooanipc cameras
+url: https://github.com/lucaslucian/mqttjooan-ha
+arch:
+  - aarch64
+  - amd64
+  - armhf
+  - armv7
+startup: services
+boot: auto
+init: false
+ingress: true
+ingress_port: 8098
+panel_icon: mdi:cctv
+panel_title: JOOAN MQTT
+ports:
+  1883/tcp: 18883
+ports_description:
+  1883/tcp: JOOAN OEM MQTT listener (camera expects TCP 1883)
+map:
+  - addon_config:rw
+  - ssl:ro
+options:
+  tls_mode: auto
+  tls_cert: ""
+  tls_key: ""
+  legacy_tls: true
+  max_messages: 1000
+  max_packet_size: 65536
+  persist_messages: true
+schema:
+  tls_mode: list(auto|off|custom)
+  tls_cert: str?
+  tls_key: str?
+  legacy_tls: bool
+  max_messages: int(100,10000)
+  max_packet_size: int(4096,1048576)
+  persist_messages: bool
