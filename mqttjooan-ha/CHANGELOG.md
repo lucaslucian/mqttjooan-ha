@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.3
+- log TCP accept before TLS;
+- inspect and log the initial TLS ClientHello without consuming it;
+- report SNI, TLS versions and cipher suites when present;
+- broaden legacy cipher compatibility and cap server negotiation at TLS 1.2 to better match the embedded client/reference bridge.
+
 ## 0.1.2
 - keep the broker listening internally on OEM TCP 443;
 - expose the Home Assistant host port as TCP 18883 to avoid conflicts with HA/HTTPS;
