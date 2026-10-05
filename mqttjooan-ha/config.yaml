@@ -1,5 +1,5 @@
 name: MQTT JOOAN HA
-version: "0.1.1"
+version: "0.1.2"
 slug: mqttjooan_ha
 description: Local MQTT/TLS sink and inspector for JOOAN jooanipc cameras
 url: https://github.com/lucaslucian/mqttjooan-ha
@@ -16,9 +16,9 @@ ingress_port: 8098
 panel_icon: mdi:cctv
 panel_title: JOOAN MQTT
 ports:
-  443/tcp: 443
+  443/tcp: 18883
 ports_description:
-  443/tcp: JOOAN OEM MQTT over TLS listener (camera cloud endpoint uses TCP 443)
+  443/tcp: JOOAN OEM MQTT/TLS listener; camera uses TCP 443, HA exposes 18883
 map:
   - addon_config:rw
   - ssl:ro
