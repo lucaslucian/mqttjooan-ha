@@ -19,7 +19,7 @@ com TLS. O projeto ADCDS redireciona essa conexão internamente para
 `127.0.0.2:1883`; portanto, **1883 é a porta do sink local do retrofit, não a
 porta original do serviço JOOAN**.
 
-A partir da v0.1.1, este add-on usa **TCP 443** por padrão.
+A partir da v0.1.2, o broker continua em **TCP 443 dentro do container**, mas o Home Assistant publica o add-on em **TCP 18883** para evitar conflito com HTTPS.
 
 ## Objetivo
 
