@@ -12,7 +12,7 @@ except Exception: pass
 MQTT_HOST=os.getenv("JOOAN_MQTT_HOST","0.0.0.0"); MQTT_PORT=int(os.getenv("JOOAN_MQTT_PORT","1883"))
 WEB_HOST=os.getenv("JOOAN_WEB_HOST","0.0.0.0"); WEB_PORT=int(os.getenv("JOOAN_WEB_PORT","8098"))
 MAX=int(OPT.get("max_messages",1000)); MAXPKT=int(OPT.get("max_packet_size",65536)); PERSIST=bool(OPT.get("persist_messages",True))
-CERT=os.getenv("JOOAN_TLS_CERT",""); KEY=os.getenv("JOOAN_TLS_KEY",""); DATA=Path("/data"); DATA.mkdir(parents=True,exist_ok=True); LOG=DATA/"messages.jsonl"
+CERT=os.getenv("JOOAN_TLS_CERT",""); KEY=os.getenv("JOOAN_TLS_KEY",""); DATA=Path(os.getenv("JOOAN_DATA_DIR","/data")); DATA.mkdir(parents=True,exist_ok=True); LOG=DATA/"messages.jsonl"
 LOCK=threading.RLock(); MSG=deque(maxlen=MAX); CLIENTS={}; SEQ=0
 
 def iso(): return time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime())
