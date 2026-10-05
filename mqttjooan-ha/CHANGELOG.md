@@ -1,8 +1,14 @@
 # Changelog
 
+## 0.1.2
+- keep the broker listening internally on OEM TCP 443;
+- expose the Home Assistant host port as TCP 18883 to avoid conflicts with HA/HTTPS;
+- update OpenWrt DNAT/hairpin examples for 443 -> 18883;
+- clarify that AdGuard should rewrite the MQTT hostname to the OpenWrt LAN IP in this layout.
+
 ## 0.1.1
 - corrected the OEM cloud MQTT destination to TCP 443;
-- add-on now listens/publishes TCP 443 by default;
+- add-on now listens internally on TCP 443;
 - automatic certificate changed to ECDSA P-256;
 - legacy TLS option is now applied by the broker;
 - improved TLS handshake logging;
