@@ -7,12 +7,26 @@ processo OEM `jooanipc`.
 > sessão MQTT da câmera, registra todos os PUBLISH e permite enviar DP bruto de
 > volta ao tópico assinado pelo `jooanipc`.
 
+## Porta/protocolo confirmados
+
+No JA-A12 usado como referência, o `jooanipc` conecta ao endpoint MQTT OEM:
+
+```text
+use1mqtt01.jooaniot.com:443/TCP
+```
+
+com TLS. O projeto ADCDS redireciona essa conexão internamente para
+`127.0.0.2:1883`; portanto, **1883 é a porta do sink local do retrofit, não a
+porta original do serviço JOOAN**.
+
+A partir da v0.1.1, este add-on usa **TCP 443** por padrão.
+
 ## Objetivo
 
 ```text
 jooanipc
    │
-   │ MQTT 3.1.1 / TLS
+   │ MQTT 3.1.1 / TLS / TCP 443
    ▼
 mqttjooan-ha
    ├── captura de telemetria
@@ -21,57 +35,47 @@ mqttjooan-ha
    └── base para sensores Home Assistant
 ```
 
-A meta seguinte é mapear os eventos da câmera para entidades do Home Assistant,
-principalmente motion, person, vehicle, auto-tracking, floodlight e estados de
-gravação.
-
 ## O que já funciona
 
 - broker MQTT 3.1.1 mínimo dedicado ao `jooanipc`;
-- TLS automático com identidade `use1mqtt01.jooaniot.com`;
+- TLS automático com identidade ECDSA para `use1mqtt01.jooaniot.com`;
 - CONNECT, SUBSCRIBE, PUBLISH, QoS 0/1, PING e DISCONNECT;
 - captura persistente opcional em `/data/messages.jsonl`;
 - detecção de payload JSON, `cmd` e `cmd_type`;
 - descoberta automática do tópico de comando `qaiot/mqtt/...`;
 - envio de DP bruto pelo painel/API;
-- painel web via Home Assistant Ingress;
-- estrutura de add-on para Home Assistant;
-- execução standalone por Docker Compose para testes.
+- painel web via Home Assistant Ingress.
 
 ## Instalação no Home Assistant
 
-Adicione este repositório como repositório de add-ons:
+Adicione:
 
 ```text
 https://github.com/lucaslucian/mqttjooan-ha
 ```
 
-Instale **MQTT JOOAN HA** e inicie o add-on.
+à loja de add-ons e instale **MQTT JOOAN HA**.
 
-Por padrão a porta interna 1883 é publicada no host como **18883** para não
-conflitar com um Mosquitto já existente. Para um DNS rewrite simples, a câmera
-precisa conseguir alcançar o bridge na **porta 1883**, então ajuste o mapeamento
-de rede do add-on para 1883 ou consulte [docs/REDIRECTION.md](docs/REDIRECTION.md).
-
-## Primeiro teste
-
-O hostname MQTT encontrado no JA-A12 é:
+A porta padrão é:
 
 ```text
-use1mqtt01.jooaniot.com
+443/tcp -> 443
 ```
 
-Aponte esse hostname no DNS local para o IP onde o bridge está ouvindo e reinicie
-a câmera. Quando houver conexão, o painel deve mostrar:
-
-```text
-CONNECT
-SUBSCRIBE qaiot/mqtt/...
-PUBLISH ...
-```
-
-Detalhes e cenários com Mosquitto/porta alternativa:
+Se a porta 443 já estiver ocupada no host do Home Assistant, mude a porta
+publicada e use o redirecionamento OpenWrt documentado em
 [docs/REDIRECTION.md](docs/REDIRECTION.md).
+
+## Primeiro teste recomendado
+
+Para teste direto por DNS:
+
+```text
+use1mqtt01.jooaniot.com -> 10.0.0.5
+```
+
+Reinicie a câmera. O painel deverá começar a mostrar CONNECT, SUBSCRIBE e
+PUBLISH caso o handshake TLS seja aceito.
 
 ## API inicial
 
@@ -82,28 +86,13 @@ GET /api/health
 POST /api/dp
 ```
 
-Exemplo de payload para listar presets no JA-A12 analisado:
-
-```json
-{
-  "payload": {
-    "cmd": 66486,
-    "cmd_type": "request"
-  }
-}
-```
-
-Não use comandos ainda não identificados em produção. A primeira fase é de
-observação e correlação de telemetria.
-
 ## Referência técnica
 
-A pesquisa de protocolo e arquitetura se apoia principalmente no excelente
-projeto [ADCDS/jooan-w3u-local-firmware](https://github.com/ADCDS/jooan-w3u-local-firmware),
-que demonstrou um sink MQTT local para o `jooanipc` da JA-A12. Este repositório
-implementa o bridge/inspector de forma independente, focado em descoberta e
-integração com Home Assistant.
+A pesquisa se apoia principalmente em
+[ADCDS/jooan-w3u-local-firmware](https://github.com/ADCDS/jooan-w3u-local-firmware).
+O vetor `redirect-approved-mqtt` desse projeto documenta a conexão OEM MQTT
+original em TCP 443 e sua reescrita local para TCP 1883.
 
 ## Licença
 
-GPL-2.0. Veja `LICENSE`.
+GPL-2.0.
