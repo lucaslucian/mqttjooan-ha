@@ -5,5 +5,5 @@ WORKDIR /opt/mqttjooan
 COPY app /opt/mqttjooan/app
 COPY run.sh /run.sh
 RUN chmod +x /run.sh
-EXPOSE 1883 8098
+EXPOSE 443 8098
 CMD ["/run.sh"]
