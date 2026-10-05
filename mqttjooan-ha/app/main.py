@@ -5,13 +5,13 @@ from collections import deque
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from pathlib import Path
 
-VERSION="0.1.0"; PREFIX="qaiot/mqtt/"
+VERSION="0.1.1"; PREFIX="qaiot/mqtt/"
 OPT={}
 try: OPT=json.loads(Path(os.getenv("JOOAN_OPTIONS","/data/options.json")).read_text())
 except Exception: pass
-MQTT_HOST=os.getenv("JOOAN_MQTT_HOST","0.0.0.0"); MQTT_PORT=int(os.getenv("JOOAN_MQTT_PORT","1883"))
+MQTT_HOST=os.getenv("JOOAN_MQTT_HOST","0.0.0.0"); MQTT_PORT=int(os.getenv("JOOAN_MQTT_PORT","443"))
 WEB_HOST=os.getenv("JOOAN_WEB_HOST","0.0.0.0"); WEB_PORT=int(os.getenv("JOOAN_WEB_PORT","8098"))
-MAX=int(OPT.get("max_messages",1000)); MAXPKT=int(OPT.get("max_packet_size",65536)); PERSIST=bool(OPT.get("persist_messages",True))
+MAX=int(OPT.get("max_messages",1000)); MAXPKT=int(OPT.get("max_packet_size",65536)); PERSIST=bool(OPT.get("persist_messages",True)); LEGACY_TLS=bool(OPT.get("legacy_tls",True))
 CERT=os.getenv("JOOAN_TLS_CERT",""); KEY=os.getenv("JOOAN_TLS_KEY",""); DATA=Path(os.getenv("JOOAN_DATA_DIR","/data")); DATA.mkdir(parents=True,exist_ok=True); LOG=DATA/"messages.jsonl"
 LOCK=threading.RLock(); MSG=deque(maxlen=MAX); CLIENTS={}; SEQ=0
 
@@ -68,6 +68,9 @@ class Broker:
         self.ctx=None
         if CERT and KEY:
             self.ctx=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            if LEGACY_TLS:
+                try:self.ctx.minimum_version=ssl.TLSVersion.TLSv1
+                except Exception:pass
             try:self.ctx.set_ciphers("DEFAULT:@SECLEVEL=1")
             except ssl.SSLError:pass
             self.ctx.load_cert_chain(CERT,KEY)
@@ -77,8 +80,11 @@ class Broker:
         while True:
             c,a=s.accept()
             if self.ctx:
-                try:c=self.ctx.wrap_socket(c,server_side=True)
-                except ssl.SSLError as e: print(f"[mqtt] TLS failed {a}: {e}",flush=True);c.close();continue
+                try:
+                    c=self.ctx.wrap_socket(c,server_side=True)
+                    print(f"[mqtt] TLS established {a} version={c.version()} cipher={c.cipher()[0] if c.cipher() else 'unknown'}",flush=True)
+                except ssl.SSLError as e:
+                    print(f"[mqtt] TLS failed {a}: {e}",flush=True);c.close();continue
             threading.Thread(target=self.client,args=(c,a),daemon=True).start()
     def client(self,c,a):
         x=Session(c,a)
