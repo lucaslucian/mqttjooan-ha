@@ -17,11 +17,12 @@ TLS_KEY=$(read_option tls_key '')
 mkdir -p /data/tls
 case "$TLS_MODE" in
   auto)
-    CERT=/data/tls/use1mqtt01.jooaniot.com.crt
-    KEY=/data/tls/use1mqtt01.jooaniot.com.key
+    CERT=/data/tls/use1mqtt01.jooaniot.com-ecdsa.crt
+    KEY=/data/tls/use1mqtt01.jooaniot.com-ecdsa.key
     if [ ! -s "$CERT" ] || [ ! -s "$KEY" ]; then
-      echo "[startup] generating TLS identity for use1mqtt01.jooaniot.com"
-      openssl req -x509 -nodes -newkey rsa:2048 -sha256 -days 3650 -keyout "$KEY" -out "$CERT" -subj '/CN=use1mqtt01.jooaniot.com' -addext 'subjectAltName=DNS:use1mqtt01.jooaniot.com' >/dev/null 2>&1
+      echo "[startup] generating ECDSA TLS identity for use1mqtt01.jooaniot.com"
+      openssl ecparam -name prime256v1 -genkey -noout -out "$KEY"
+      openssl req -new -x509 -sha256 -days 3650         -key "$KEY" -out "$CERT"         -subj '/CN=use1mqtt01.jooaniot.com'         -addext 'subjectAltName=DNS:use1mqtt01.jooaniot.com' >/dev/null 2>&1
       chmod 600 "$KEY"
     fi
     ;;
