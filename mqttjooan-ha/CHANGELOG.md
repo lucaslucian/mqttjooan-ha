@@ -1,10 +1,18 @@
 # Changelog
 
+## 0.1.1
+- corrected the OEM cloud MQTT destination to TCP 443;
+- add-on now listens/publishes TCP 443 by default;
+- automatic certificate changed to ECDSA P-256;
+- legacy TLS option is now applied by the broker;
+- improved TLS handshake logging;
+- redirection documentation updated for AdGuard/OpenWrt.
+
 ## 0.1.0
-- broker MQTT 3.1.1 local inicial;
-- TLS automático/custom/off;
-- captura de CONNECT/SUBSCRIBE/PUBLISH;
+- initial local MQTT 3.1.1 broker;
+- automatic/custom/off TLS;
+- CONNECT/SUBSCRIBE/PUBLISH capture;
 - QoS 0/1;
-- inspector web via HA Ingress;
-- persistência JSONL;
-- envio DP bruto para o tópico assinado pela câmera.
+- web inspector via HA Ingress;
+- JSONL persistence;
+- raw DP sending to the camera subscription topic.
