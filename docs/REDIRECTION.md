@@ -1,32 +1,58 @@
 # Redirecionando o jooanipc para o MQTT local
 
-Na unidade JA-A12 analisada pelo projeto ADCDS/jooan-w3u-local-firmware, o `jooanipc` resolve:
+Na JA-A12 analisada pelo projeto ADCDS/jooan-w3u-local-firmware, o endpoint MQTT é:
 
 ```text
-use1mqtt01.jooaniot.com
+use1mqtt01.jooaniot.com:443/TCP
 ```
 
-## Teste recomendado
-1. Faça o bridge ficar acessível em TCP **1883**.
-2. No DNS local, crie:
+O guard daquele projeto reescreve esse destino para `127.0.0.2:1883`. Portanto,
+1883 é a porta do sink local do retrofit; a conexão OEM original usa TCP 443.
+
+## Opção A — AdGuard direto para o Home Assistant
+
+Com o add-on usando a porta padrão 443:
+
 ```text
-use1mqtt01.jooaniot.com -> IP_DO_MQTTJOOAN
+use1mqtt01.jooaniot.com -> 10.0.0.5
 ```
-3. Reinicie a câmera.
-4. No painel do add-on devem aparecer CONNECT, SUBSCRIBE e PUBLISH.
 
-## Se a 1883 já estiver ocupada pelo Mosquitto
-O add-on usa 18883 no host por padrão. DNS não troca porta, então escolha uma das opções:
-- alterar o mapeamento do add-on para host 1883 temporariamente;
-- executar o bridge em outro IP onde a 1883 esteja livre;
-- aplicar DNAT, somente para o IP da câmera, de destino TCP/1883 para IP_DO_MQTTJOOAN:18883.
+A câmera continuará usando o hostname original/SNI, mas abrirá a conexão em:
+
+```text
+10.0.0.5:443
+```
+
+Não é necessário DNAT para esse método.
+
+## Opção B — AdGuard para o OpenWrt + DNAT
+
+Faça o rewrite:
+
+```text
+use1mqtt01.jooaniot.com -> 10.0.0.1
+```
+
+Então redirecione somente a câmera:
+
+```text
+10.0.0.10 -> 10.0.0.1:443 -> 10.0.0.5:443
+```
+
+Use SNAT/hairpin para que a resposta do HA volte obrigatoriamente pelo OpenWrt.
+
+## Importante
+
+Não crie uma regra genérica que intercepte todo TCP/443 originado pela câmera.
+O firmware também utiliza outros serviços JOOAN em 443, inclusive
+`use1api.jooaniot.com`. O rewrite de DNS deve ser apenas para
+`use1mqtt01.jooaniot.com`.
 
 ## TLS
-O modo `auto` gera certificado com CN/SAN `use1mqtt01.jooaniot.com`. Isso funciona se o cliente OEM não exigir uma CA específica. Se o handshake falhar, primeiro confirme o tráfego e então teste `tls_mode: off` apenas como diagnóstico.
 
-## Método comprovado no retrofit JA-A12
-O projeto ADCDS usa LD_PRELOAD dentro da própria câmera para redirecionar:
-```text
-use1mqtt01.jooaniot.com -> 127.0.0.2
-```
-Não aplique esse shim binário a outro firmware sem validar o hash/ABI do `jooanipc`.
+O modo `auto` gera uma identidade ECDSA P-256 com CN/SAN
+`use1mqtt01.jooaniot.com`. O broker aceita configuração TLS mais antiga quando
+`legacy_tls: true`, para aumentar a compatibilidade com o cliente embarcado.
+
+Se a câmera rejeitar o certificado, os logs mostrarão a falha de handshake e a
+próxima etapa será reproduzir mais exatamente a identidade TLS usada pelo retrofit.
