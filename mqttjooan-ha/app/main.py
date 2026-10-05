@@ -5,7 +5,7 @@ from collections import deque
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from pathlib import Path
 
-VERSION="0.1.1"; PREFIX="qaiot/mqtt/"
+VERSION="0.1.2"; PREFIX="qaiot/mqtt/"
 OPT={}
 try: OPT=json.loads(Path(os.getenv("JOOAN_OPTIONS","/data/options.json")).read_text())
 except Exception: pass
