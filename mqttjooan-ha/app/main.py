@@ -5,7 +5,7 @@ from collections import deque
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from pathlib import Path
 
-VERSION="0.1.2"; PREFIX="qaiot/mqtt/"
+VERSION="0.1.3"; PREFIX="qaiot/mqtt/"
 OPT={}
 try: OPT=json.loads(Path(os.getenv("JOOAN_OPTIONS","/data/options.json")).read_text())
 except Exception: pass
@@ -54,6 +54,58 @@ def status():
     with LOCK:
         return {"version":VERSION,"mqtt":{"listen":f"{MQTT_HOST}:{MQTT_PORT}","tls":bool(CERT and KEY),"clients":[c.public() for c in CLIENTS.values()]},"messages":{"total":SEQ,"buffered":len(MSG),"persist":PERSIST}}
 
+def tls_client_hello_info(data):
+    info={"bytes":len(data),"first_hex":data[:32].hex()}
+    if len(data)<5:
+        info["kind"]="short_or_non_tls"
+        return info
+    info["record_type"]=data[0]
+    info["record_version"]=f"{data[1]}.{data[2]}"
+    info["record_length"]=struct.unpack("!H",data[3:5])[0]
+    if data[0]!=0x16 or len(data)<11 or data[5]!=0x01:
+        info["kind"]="non_client_hello"
+        return info
+    info["kind"]="client_hello"
+    try:
+        info["client_version"]=f"{data[9]}.{data[10]}"
+        o=11+32
+        sid_len=data[o];o+=1+sid_len
+        cs_len=struct.unpack_from("!H",data,o)[0];o+=2
+        suites=[]
+        end=o+cs_len
+        while o+1<end:
+            suites.append(f"0x{struct.unpack_from('!H',data,o)[0]:04x}")
+            o+=2
+        info["cipher_suites"]=suites
+        if o<len(data):
+            comp_len=data[o];o+=1+comp_len
+        if o+2<=len(data):
+            ext_len=struct.unpack_from("!H",data,o)[0];o+=2
+            ext_end=min(len(data),o+ext_len)
+            while o+4<=ext_end:
+                et,el=struct.unpack_from("!HH",data,o);o+=4
+                ev=data[o:o+el];o+=el
+                if et==0 and len(ev)>=5:
+                    list_len=struct.unpack_from("!H",ev,0)[0]
+                    p=2
+                    while p+3<=min(len(ev),2+list_len):
+                        nt=ev[p];nl=struct.unpack_from("!H",ev,p+1)[0];p+=3
+                        if p+nl>len(ev):break
+                        if nt==0:
+                            info["sni"]=ev[p:p+nl].decode("ascii","replace")
+                            break
+                        p+=nl
+                elif et==43 and len(ev)>=3:
+                    n=ev[0];vers=[]
+                    p=1
+                    while p+1<min(len(ev),1+n):
+                        vers.append(f"{ev[p]}.{ev[p+1]}")
+                        p+=2
+                    info["supported_versions"]=vers
+    except Exception as e:
+        info["parse_error"]=str(e)
+    return info
+
 class Session:
     def __init__(self,c,a):
         self.c=c;self.a=a;self.id=f"{a[0]}:{a[1]}-{time.time_ns()}";self.client_id="";self.topic="";self.subs=[];self.lock=threading.Lock()
@@ -71,15 +123,35 @@ class Broker:
             if LEGACY_TLS:
                 try:self.ctx.minimum_version=ssl.TLSVersion.TLSv1
                 except Exception:pass
-            try:self.ctx.set_ciphers("DEFAULT:@SECLEVEL=1")
+            try:self.ctx.set_ciphers("ALL:@SECLEVEL=0")
             except ssl.SSLError:pass
+            try:self.ctx.maximum_version=ssl.TLSVersion.TLSv1_2
+            except Exception:pass
+            try:self.ctx.set_ecdh_curve("prime256v1")
+            except Exception:pass
             self.ctx.load_cert_chain(CERT,KEY)
     def run(self):
         s=socket.socket();s.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1);s.bind((MQTT_HOST,MQTT_PORT));s.listen(16)
         print(f"[mqtt] {MQTT_HOST}:{MQTT_PORT} tls={'on' if self.ctx else 'off'}",flush=True)
         while True:
             c,a=s.accept()
+            print(f"[mqtt] TCP accepted {a}",flush=True)
             if self.ctx:
+                try:
+                    c.settimeout(3.0)
+                    peek=c.recv(8192,socket.MSG_PEEK)
+                    c.settimeout(None)
+                    if not peek:
+                        print(f"[mqtt] TCP closed before TLS data {a}",flush=True)
+                        c.close();continue
+                    print(f"[mqtt] TLS preflight {a}: {json.dumps(tls_client_hello_info(peek),separators=(',',':'))}",flush=True)
+                except socket.timeout:
+                    c.settimeout(None)
+                    print(f"[mqtt] TLS preflight timeout {a}: no client data in 3s",flush=True)
+                except Exception as e:
+                    try:c.settimeout(None)
+                    except Exception:pass
+                    print(f"[mqtt] TLS preflight error {a}: {e}",flush=True)
                 try:
                     c=self.ctx.wrap_socket(c,server_side=True)
                     print(f"[mqtt] TLS established {a} version={c.version()} cipher={c.cipher()[0] if c.cipher() else 'unknown'}",flush=True)
