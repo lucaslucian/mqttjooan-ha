@@ -1,58 +1,73 @@
 # Redirecionando o jooanipc para o MQTT local
 
-Na JA-A12 analisada pelo projeto ADCDS/jooan-w3u-local-firmware, o endpoint MQTT é:
+No JA-A12 usado como referência, o endpoint MQTT OEM é:
 
 ```text
 use1mqtt01.jooaniot.com:443/TCP
 ```
 
-O guard daquele projeto reescreve esse destino para `127.0.0.2:1883`. Portanto,
-1883 é a porta do sink local do retrofit; a conexão OEM original usa TCP 443.
+O `mqttjooan-ha` continua ouvindo **internamente em TCP 443**, mas o add-on
+publica essa porta no host do Home Assistant como **TCP 18883** para não
+conflitar com HTTPS/443 existente.
 
-## Opção A — AdGuard direto para o Home Assistant
-
-Com o add-on usando a porta padrão 443:
-
-```text
-use1mqtt01.jooaniot.com -> 10.0.0.5
-```
-
-A câmera continuará usando o hostname original/SNI, mas abrirá a conexão em:
+## Layout recomendado
 
 ```text
-10.0.0.5:443
+JOOAN 10.0.0.10
+        |
+        | DNS: use1mqtt01.jooaniot.com -> 10.0.0.1
+        |
+        v
+OpenWrt 10.0.0.1:443
+        |
+        | DNAT 443 -> 18883
+        | SNAT/hairpin
+        v
+Home Assistant 10.0.0.5:18883
+        |
+        | add-on port mapping
+        v
+mqttjooan-ha container :443
 ```
 
-Não é necessário DNAT para esse método.
+## AdGuard
 
-## Opção B — AdGuard para o OpenWrt + DNAT
-
-Faça o rewrite:
+Crie somente:
 
 ```text
 use1mqtt01.jooaniot.com -> 10.0.0.1
 ```
 
-Então redirecione somente a câmera:
+Não aponte diretamente para `10.0.0.5` neste layout, porque a câmera conecta
+em TCP 443 e o add-on está publicado no host em 18883.
+
+Não reescreva `use1api.jooaniot.com`.
+
+## OpenWrt
+
+O script pronto está em:
 
 ```text
-10.0.0.10 -> 10.0.0.1:443 -> 10.0.0.5:443
+scripts/openwrt-jooan-mqtt.sh
 ```
 
-Use SNAT/hairpin para que a resposta do HA volte obrigatoriamente pelo OpenWrt.
+Ele cria uma regra restrita:
 
-## Importante
+```text
+origem:  10.0.0.10
+destino original: 10.0.0.1:443
+DNAT:    10.0.0.5:18883
+SNAT:    10.0.0.1
+```
 
-Não crie uma regra genérica que intercepte todo TCP/443 originado pela câmera.
-O firmware também utiliza outros serviços JOOAN em 443, inclusive
-`use1api.jooaniot.com`. O rewrite de DNS deve ser apenas para
-`use1mqtt01.jooaniot.com`.
+Como a regra exige `destino original = 10.0.0.1`, ela não captura as demais
+conexões HTTPS da câmera para outros serviços.
 
 ## TLS
 
-O modo `auto` gera uma identidade ECDSA P-256 com CN/SAN
-`use1mqtt01.jooaniot.com`. O broker aceita configuração TLS mais antiga quando
-`legacy_tls: true`, para aumentar a compatibilidade com o cliente embarcado.
+O TLS atravessa o OpenWrt sem ser terminado ou alterado. O add-on termina a
+sessão TLS e apresenta certificado ECDSA P-256 com CN/SAN
+`use1mqtt01.jooaniot.com`.
 
-Se a câmera rejeitar o certificado, os logs mostrarão a falha de handshake e a
-próxima etapa será reproduzir mais exatamente a identidade TLS usada pelo retrofit.
+Se a câmera rejeitar o certificado, o log do add-on mostrará a falha de
+handshake para continuarmos a compatibilização.
